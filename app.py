@@ -9,6 +9,15 @@ from dotenv import load_dotenv
 from flask import Flask, request, render_template
 from schema import Schema
 
+# import all ADL module functions required to perform all steps required for ADL
+from modules.autodataloader import create_server_connection, sql_query_execute
+
+
+DATABASE_SERVER = 'AU16910\DT_2019'
+DATABASE_NAME = 'Payment_Platform'
+DATABASE_SCHEMA = 'PayModule'
+
+
 app = Flask(__name__, template_folder='tpl')
 # Read .env file
 load_dotenv()
@@ -17,18 +26,20 @@ TEMPLATE_DIR = os.path.abspath('./tpl')
 PROMPT_DIR = os.path.abspath('./prompts')
 APP_PORT = os.getenv('APP_PORT') or 5000
 DATABASE_URL = os.getenv('DATABASE_URL')
-if not DATABASE_URL:
-    print('Please set DATABASE_URL in .env file.')
-    sys.exit(1)
+#if not DATABASE_URL:
+#    print('Please set DATABASE_URL in .env file.')
+#    sys.exit(1)
 
-if os.getenv('OPENAI_TOKEN'):
-    openai.api_key = os.getenv('OPENAI_TOKEN')
+if os.getenv('gpt-api-token'):
+    openai.api_key = os.getenv('gpt-api-token')
 
 if not openai.api_key:
-    print('Please set OPENAI_TOKEN in .env file or set token in UI') # Not a critical error
+    print('Please set gpt-api-token in .env file or set token in UI') # Not a critical error
 
 # Generate SQL Schema from PostgreSQL
-schema = Schema()
+schema = Schema( db_server = DATABASE_SERVER
+                ,db_name = DATABASE_NAME
+                ,schema = DATABASE_SCHEMA)
 sql_schema, json_data = schema.index()
 print('SQL data was generated successfully.')
 
@@ -49,15 +60,15 @@ def get_key():
     if not content['api_key'] and not openai.api_key:
         return {
             'success': False,
-            'error': 'Please set OPENAI_TOKEN in .env file or set token in UI'
+            'error': 'Please set gpt-api-token in .env file or set token in UI'
         }
 
     if content and content['api_key']:
         request.api_key = content['api_key']
     else:
-        request.api_key = os.getenv('OPENAI_TOKEN')
+        request.api_key = os.getenv('gpt-api-token')
 
-@app.get('/')
+@app.route('/', methods=["GET"])
 def index():
     """Show SQL Schema + prompt to ask GPT-3 to generate SQL queries"""
     normalized_json_data = json.dumps(json_data)
@@ -68,7 +79,7 @@ def index():
         json_data=normalized_json_data
     )
 
-@app.post('/generate')
+@app.route('/generate', methods=["POST"])
 def generate():
     """Generate SQL query from prompt + user input"""
     try:
@@ -118,7 +129,7 @@ def generate():
             'error': str(err)
         }
 
-@app.post('/run')
+@app.route('/run', methods=["POST"])
 def execute():
     """Execute SQL query and show results in a table"""
     # Get SQL query
@@ -129,13 +140,54 @@ def execute():
         print('Run SQL query:', sql_query)
 
         # Execute SQL query and show results in a table
-        conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute(sql_query)
+        #conn = psycopg2.connect(DATABASE_URL)
+        #cur = conn.cursor()
+        #cur.execute(sql_query)
+        #results = cur.fetchall()
+        
+        
+        ########################################################
+        # step 1) 	Connect to target SQL server database
+        ########################################################
+
+        engine, error_message  = create_server_connection(DBserver = DATABASE_SERVER
+                ,DBname = DATABASE_NAME)
+        
+        # if an error has occured, abort by returning from this function
+        if error_message:
+            print("Error encountered whilst attempting to connect to target DB...ABORTING...")
+            
+            return {
+            'success': False,
+            'error': str(error_message)
+            }
+        else:
+            print("Connecting to target DB complete...")
+            
+        result = None
+        
+        ########################################################
+        # step 2) 	run the SQL query
+        ########################################################
+        """
+        result, error_message = sql_query_execute(sql_query, engine)
+
+        if error_message:
+            print("Error encountered whilst initialising ADL structures in target DB...ABORTING...")
+            
+            'success': False,
+            'error': str(error_message)
+        else:
+            print("Initialising ADL structures in target DB complete...")
+        """ 
+        cur = engine.execute(sql_query)
         results = cur.fetchall()
 
+        ########################################################
+
+
         # Return json with all columns names and results
-        columns = [desc[0] for desc in cur.description]
+        columns = cur.keys() #[desc[0] for desc in cur.description]
         results = [dict(zip(columns, row)) for row in results]
         seconds_elapsed = time.time() - ts_start
         return {
@@ -144,12 +196,12 @@ def execute():
             'results': results,
             'seconds_elapsed': seconds_elapsed
         }
-    except psycopg2.Error as err:
-        print(err)
-        return {
-            'success': False,
-            'error': str(err)
-        }
+    #except psycopg2.Error as err:
+    #    print(err)
+    #    return {
+    #        'success': False,
+    #        'error': str(err)
+    #    }
     except Exception as err:
         print(err)
         return {
@@ -157,7 +209,7 @@ def execute():
             'error': str(err)
         }
 
-@app.post('/generate_prompt')
+@app.route('/generate_prompt', methods=["POST"])
 def generate_prompt():
     """Generate prompt from selected tables"""
     try:
@@ -201,7 +253,7 @@ def generate_prompt():
             'error': str(err)
         }
 
-@app.post('/generate_chart')
+@app.route('/generate_chart', methods=["POST"])
 def generate_chart():
     """Generate chart from SQL query"""
     content = request.json

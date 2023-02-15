@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     query_temperture = 0.5
     prompt = input('Enter prompt to generate SQL query: ')
-    final_prompt = f'Given an input question, respond with syntactically correct PostgreSQL. Be creative but the SQL must be correct, not nessesary to use all tables.\n\n{sql_schema}\n\nInstructions: {prompt}\n\nSQL:\n'
+    final_prompt = f'Given an input question, respond with syntactically correct Microsoft SQL Server 2019 programming language. Be creative but the SQL must be correct. It is not nessesary to use all tables, but make sure to use the columns related to the tables used.\n\n{sql_schema}\n\nInstructions: {prompt}\n\nSQL:\n'
 
     gpt_response = openai.Completion.create(
         engine="text-davinci-003",
