@@ -19,7 +19,7 @@ GPT-3 self choose the chart type and prepare the data for it (it is not perfect,
 6. Execute SQL query and show results in a table
 
 ## Environment
-- DATABASE_URL: PostgreSQL database URL
+- DATABASE_URL: PostgreSQL database URL - *No longer used, currently hardcoded database details*
 - OPENAI_TOKEN: OpenAI API token (Not nessessary, you can set it in the UI)
 - APP_PORT: Port to run the application (default: 5000)
 - OPENAI_ENGINE: OpenAI engine to use (default: text-davinci-003, not nessessary). You can set some free to use model: text-chat-davinci-002-20221122
